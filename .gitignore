@@ -1,0 +1,4 @@
+build/
+transcript
+*.log
+*.wlf

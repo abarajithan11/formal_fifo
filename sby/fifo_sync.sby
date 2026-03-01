@@ -1,0 +1,15 @@
+[options]
+mode prove
+depth 20
+
+[engines]
+smtbmc boolector
+
+[script]
+read -sv fifo_sync.sv
+read -sv tb_fifo_sync.sv
+prep -top tb_fifo_sync
+
+[files]
+rtl/fifo_sync.sv
+tb/tb_fifo_sync.sv

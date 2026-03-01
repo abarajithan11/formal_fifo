@@ -1,0 +1,11 @@
+name: Formal Verification
+
+on: [push, pull_request]
+
+jobs:
+  formal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: YosysHQ/setup-oss-cad-suite@v3
+      - run: make sby IP=fifo_sync
