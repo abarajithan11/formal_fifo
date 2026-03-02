@@ -12,4 +12,4 @@ prep -top tb_fifo_sync
 
 [files]
 rtl/fifo_sync.sv
-tb/tb_fifo_sync.sv
+formal/tb_fifo_sync.sv

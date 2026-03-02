@@ -2,3 +2,5 @@ build/
 transcript
 *.log
 *.wlf
+*.vcd
+*.qverify
