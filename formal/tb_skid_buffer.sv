@@ -13,6 +13,53 @@ module tb_skid_buffer;
 
   wire s_stall = s_valid && !s_ready;
   wire m_stall = m_valid && !m_ready;
+  wire s_hsk   = s_valid && s_ready;
+  wire m_hsk   = m_valid && m_ready;
+
+  localparam METHOD = 0;
+
+  if (METHOD == 0) begin
+
+    logic arbit_window; // unconstrained, so the tool can check for different data=d1/d2
+    logic seen_s_d1, seen_m_d1, seen_s_d2, seen_m_d2;
+    logic sampled_s_d1, sampled_m_d1, sampled_s_d2, sampled_m_d2;
+    logic [WIDTH-1:0] d1, d2;
+
+    // D1
+    assign seen_s_d1 = (s_data == d1) && s_hsk && !sampled_s_d1 && arbit_window;
+    assign seen_m_d1 = (m_data == d1) && m_hsk && sampled_s_d1;
+
+    always_ff @(posedge clk)
+      if(!rstn)           sampled_s_d1 <= 0;
+      else if (seen_s_d1) sampled_s_d1 <= 1;
+
+    always_ff @(posedge clk)
+      if(!rstn)           sampled_m_d1 <= 0;
+      else if (seen_m_d1) sampled_m_d1 <= 1;
+
+    // D2
+    assign seen_s_d2 = (s_data == d2) && s_hsk && !sampled_s_d2 && arbit_window;
+    assign seen_m_d2 = (m_data == d2) && m_hsk && sampled_s_d2;
+
+    always_ff @(posedge clk)
+      if(!rstn)           sampled_s_d2 <= 0;
+      else if (seen_s_d2) sampled_s_d2 <= 1;
+
+    always_ff @(posedge clk)
+      if(!rstn)           sampled_m_d2 <= 0;
+      else if (seen_m_d2) sampled_m_d2 <= 1;
+
+    // Constraints. d1 & d2 should be different, but stable in sim. d1 enters before d2.
+    s_stable_d1: assume property ($stable(d1));
+    s_stable_d2: assume property ($stable(d2));
+    s_different: assume property (d1 != d2);
+    s_ordering : assume property (!sampled_s_d1 |-> !sampled_s_d2);
+
+    // FIFO Assertions
+    a_ordering : assert property (sampled_s_d1 && sampled_s_d2 && !sampled_m_d1 |-> !sampled_m_d2);
+    a_integrity: assert property (sampled_s_d1 |-> ##[0:$] sampled_m_d1); // data eventually comes out
+
+  end
 
   // Covers
   c_s_stall         : cover property (s_stall);
