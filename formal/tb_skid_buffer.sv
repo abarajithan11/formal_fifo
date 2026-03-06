@@ -16,9 +16,11 @@ module tb_skid_buffer;
   wire s_hsk   = s_valid && s_ready;
   wire m_hsk   = m_valid && m_ready;
 
-  localparam METHOD = 0;
+  localparam METHOD = 1;
 
-  if (METHOD == 0) begin
+
+
+  if (METHOD == 0) begin: g_two_data_tracking
 
     logic arbit_window; // unconstrained, so the tool can check for different data=d1/d2
     logic seen_s_d1, seen_m_d1, seen_s_d2, seen_m_d2;
@@ -58,6 +60,40 @@ module tb_skid_buffer;
     // FIFO Assertions
     a_ordering : assert property (sampled_s_d1 && sampled_s_d2 && !sampled_m_d1 |-> !sampled_m_d2);
     a_integrity: assert property (sampled_s_d1 |-> ##[0:$] sampled_m_d1); // data eventually comes out
+
+
+
+  end else if (METHOD == 1) begin: g_one_data_tracking
+
+    localparam DEPTH = 2;
+    localparam DEPTH_BITS = $clog2(DEPTH);
+
+    logic [WIDTH-1:0] d;
+    logic [DEPTH_BITS:0] track_count;
+    logic arbit_window, incr, decr, sampled_s, sampled_m, seen_s, seen_m;
+
+    s_stable_d: assume property ($stable(d));
+
+    assign incr = s_hsk && !sampled_s;
+    assign decr = m_hsk && !sampled_m;
+
+    assign seen_s = (s_data == d) && incr && arbit_window;
+    assign seen_m = (track_count == 1) && sampled_s && decr;
+
+    always_ff @(posedge clk)
+      if (!rstn)        sampled_s <= 0;
+      else if (seen_s)  sampled_s <= 1;
+
+    always_ff @(posedge clk)
+      if (!rstn)        sampled_m <= 0;
+      else if (seen_m)  sampled_m <= 1;
+
+    always_ff @(posedge clk)
+      if (!rstn) track_count <= '0;
+      else       track_count <= track_count + (incr - decr);
+
+    a_integrity: assert property (seen_m |-> m_data == d); // data integrity
+    a_liveness : assert property (sampled_s |-> ##[1:$] sampled_m); // data eventually comes out
 
   end
 
