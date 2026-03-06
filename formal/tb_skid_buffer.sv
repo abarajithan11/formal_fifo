@@ -36,7 +36,7 @@ module tb_skid_buffer;
 
   // FIFO Checks
 
-  localparam METHOD = 1;
+  localparam METHOD = 2;
 
   if (METHOD == 0) begin: g_two_data_tracking
 
@@ -113,6 +113,41 @@ module tb_skid_buffer;
     a_integrity: assert property (seen_m |-> m_data == d); // data integrity
     a_liveness : assert property (sampled_s |-> ##[1:$] sampled_m); // data eventually comes out
 
+
+
+  end else if (METHOD == 2) begin: g_idx_tracking
+
+    logic [7:0] nn, s_nn, m_nn;
+    logic sampled_s, sampled_m, seen_s, seen_m;
+    logic [WIDTH-1:0] d_nn;
+
+    s_stable_nn: assume property ($stable(nn));
+
+    always_ff @(posedge clk)
+      if      (!rstn) s_nn <= 0;
+      else if (s_hsk) s_nn <= s_nn + 1;
+
+    always_ff @(posedge clk)
+      if      (!rstn) m_nn <= 0;
+      else if (m_hsk) m_nn <= m_nn + 1;
+
+    assign seen_s = (s_nn == nn) && s_hsk;
+    assign seen_m = (m_nn == nn) && m_hsk && sampled_s;
+
+    always_ff @(posedge clk)
+      if (!rstn)        d_nn <= 0;
+      else if (seen_s)  d_nn <= s_data;
+
+    always_ff @(posedge clk)
+      if (!rstn)        sampled_s <= 0;
+      else if (seen_s)  sampled_s <= 1;
+
+    always_ff @(posedge clk)
+      if (!rstn)        sampled_m <= 0;
+      else if (seen_m)  sampled_m <= 1;
+
+    a_integrity: assert property (seen_m |-> m_data == d_nn); // data integrity
+    a_liveness : assert property (sampled_s |-> ##[1:$] sampled_m); // data eventually comes out
   end
 
 endmodule
