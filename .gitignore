@@ -4,3 +4,5 @@ transcript
 *.wlf
 *.vcd
 *.qverify
+*.vstf
+.visualizer

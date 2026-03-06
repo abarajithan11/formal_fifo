@@ -3,69 +3,32 @@
 module tb_skid_buffer;
 
   localparam WIDTH = 8;
-
-  logic clk;
-  logic             rstn;
-  logic             s_valid, m_ready;
-  logic [WIDTH-1:0] s_data;
-  logic             m_valid, s_ready;
-  logic [WIDTH-1:0] m_data;
+  logic clk, rstn, s_valid, m_ready, m_valid, s_ready;
+  logic [WIDTH-1:0] s_data, m_data;
 
   skid_buffer #(.WIDTH(WIDTH)) dut (.*);
 
-  logic f_past_valid, past_rstn;
-  initial begin
-    f_past_valid = 1'b0;
-    past_rstn    = 1'b0;
-  end
+  default clocking cb @(posedge clk); endclocking
+  default disable iff (!rstn);
 
-  always @(posedge clk) begin
-    f_past_valid <= 1'b1;
-    past_rstn    <= rstn;
-  end
+  wire s_stall = s_valid && !s_ready;
+  wire m_stall = m_valid && !m_ready;
 
-  // Startup reset assumption: standard formal pattern
-  always @(*) begin
-    if (!f_past_valid) begin
-      assume(!rstn);
-      assume(!s_valid);   // optional, but reasonable
-    end
-  end
+  // Covers
+  c_s_stall         : cover property (s_stall);
+  c_m_stall         : cover property (m_stall);
+  c_buff_full       : cover property (!s_ready && m_valid);
 
-  // For a clean startup-cover task, keep reset deasserted after cycle 0
-  always @(posedge clk)
-    if (f_past_valid)
-      assume(rstn);
+  // Assumes
+  a_stable_s_valid  : assume property (s_stall |=> $stable(s_valid));
+  a_stable_s_data   : assume property (s_stall |=> $stable(s_data));
 
-  default clocking cb @(posedge clk);
-  endclocking
-  
-  wire active = rstn && $past(rstn);
+  // Asserts
+  a_stable_m_valid  : assert property (m_stall |=> $stable(m_valid));
+  a_stable_m_data   : assert property (m_stall |=> $stable(m_data));
 
-  // Slave-side stability assumptions
-  always @(posedge clk) if (active && $past(s_valid && !s_ready)) begin
-    assume(s_valid);
-    assume(s_data == $past(s_data));
-  end
-
-  // Master-side stability assertions
-  always @(posedge clk) if (active && $past(m_valid && !m_ready)) begin
-    assert(m_valid);
-    assert(m_data == $past(m_data));
-  end
-
-  // Reset-state assertions
-  always @(posedge clk)
-    if (!f_past_valid || $past(!rstn)) begin
-      if (f_past_valid) begin
-        assert(s_ready);
-        assert(!m_valid);
-        assert(m_data == '0);
-      end
-    end
-
-  wire buff_full = active && !s_ready && m_valid;
-  always @(posedge clk)
-    cover (buff_full);
+  a_after_reset     : assert property (
+    $rose(rstn) |-> (s_ready && !m_valid && (m_data == '0))
+  );
 
 endmodule
