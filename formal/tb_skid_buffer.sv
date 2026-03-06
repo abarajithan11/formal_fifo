@@ -16,9 +16,27 @@ module tb_skid_buffer;
   wire s_hsk   = s_valid && s_ready;
   wire m_hsk   = m_valid && m_ready;
 
+  // AXI Stream Checks
+  c_s_stall         : cover property (s_stall);
+  c_m_stall         : cover property (m_stall);
+  c_buff_full       : cover property (!s_ready && m_valid);
+
+  // Assumes
+  a_stable_s_valid  : assume property (s_stall |=> $stable(s_valid));
+  a_stable_s_data   : assume property (s_stall |=> $stable(s_data));
+
+  // Asserts
+  a_stable_m_valid  : assert property (m_stall |=> $stable(m_valid));
+  a_stable_m_data   : assert property (m_stall |=> $stable(m_data));
+
+  a_after_reset     : assert property (
+    $rose(rstn) |-> (s_ready && !m_valid && (m_data == '0))
+  );
+
+
+  // FIFO Checks
+
   localparam METHOD = 1;
-
-
 
   if (METHOD == 0) begin: g_two_data_tracking
 
@@ -96,22 +114,5 @@ module tb_skid_buffer;
     a_liveness : assert property (sampled_s |-> ##[1:$] sampled_m); // data eventually comes out
 
   end
-
-  // Covers
-  c_s_stall         : cover property (s_stall);
-  c_m_stall         : cover property (m_stall);
-  c_buff_full       : cover property (!s_ready && m_valid);
-
-  // Assumes
-  a_stable_s_valid  : assume property (s_stall |=> $stable(s_valid));
-  a_stable_s_data   : assume property (s_stall |=> $stable(s_data));
-
-  // Asserts
-  a_stable_m_valid  : assert property (m_stall |=> $stable(m_valid));
-  a_stable_m_data   : assert property (m_stall |=> $stable(m_data));
-
-  a_after_reset     : assert property (
-    $rose(rstn) |-> (s_ready && !m_valid && (m_data == '0))
-  );
 
 endmodule
