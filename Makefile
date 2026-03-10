@@ -1,4 +1,4 @@
-IP ?= fifo_sync
+IP ?= skid_buffer
 
 .PHONY: sby qverify clean
 

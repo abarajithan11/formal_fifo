@@ -2,7 +2,7 @@
 
 module tb_skid_buffer;
 
-  localparam WIDTH = 8;
+  localparam WIDTH = 4096;
   logic clk, rstn, s_valid, m_ready, m_valid, s_ready;
   logic [WIDTH-1:0] s_data, m_data;
 
@@ -36,16 +36,18 @@ module tb_skid_buffer;
 
   // FIFO Checks
 
-  localparam METHOD = 2;
+  localparam METHOD = 0;
 
   if (METHOD == 0) begin: g_two_data_tracking
 
     logic arbit_window; // unconstrained, so the tool can check for different data=d1/d2
-    logic seen_s_d1, seen_m_d1, seen_s_d2, seen_m_d2;
-    logic sampled_s_d1, sampled_m_d1, sampled_s_d2, sampled_m_d2;
-    logic [WIDTH-1:0] d1, d2;
+    logic seen_s_d1, seen_m_d1, seen_s_d2, seen_m_d2, seen_s_d3, seen_m_d3, check_dup;
+    logic sampled_s_d1, sampled_m_d1, sampled_s_d2, sampled_m_d2, sampled_s_d3, sampled_m_d3;
+    logic [WIDTH-1:0] d1, d2, d3;
 
     // D1
+    s_stable_d1: assume property ($stable(d1));
+
     assign seen_s_d1 = (s_data == d1) && s_hsk && !sampled_s_d1 && arbit_window;
     assign seen_m_d1 = (m_data == d1) && m_hsk && sampled_s_d1;
 
@@ -58,6 +60,9 @@ module tb_skid_buffer;
       else if (seen_m_d1) sampled_m_d1 <= 1;
 
     // D2
+    s_stable_d2: assume property ($stable(d2));
+    s_different: assume property (d1 != d2);
+
     assign seen_s_d2 = (s_data == d2) && s_hsk && !sampled_s_d2 && arbit_window;
     assign seen_m_d2 = (m_data == d2) && m_hsk && sampled_s_d2;
 
@@ -69,17 +74,31 @@ module tb_skid_buffer;
       if(!rstn)           sampled_m_d2 <= 0;
       else if (seen_m_d2) sampled_m_d2 <= 1;
 
-    // Constraints. d1 & d2 should be different, but stable in sim. d1 enters before d2.
-    s_stable_d1: assume property ($stable(d1));
-    s_stable_d2: assume property ($stable(d2));
-    s_different: assume property (d1 != d2);
+    // d1 enters before d2.
     s_ordering : assume property (!sampled_s_d1 |-> !sampled_s_d2);
 
     // FIFO Assertions
     a_ordering : assert property (sampled_s_d1 && sampled_s_d2 && !sampled_m_d1 |-> !sampled_m_d2);
     a_integrity: assert property (sampled_s_d1 |-> ##[0:$] sampled_m_d1); // data eventually comes out
 
+    // D3 (for uniqueness)
 
+    s_stable_du: assume property ($stable(check_dup));
+    s_stable_d3: assume property ($stable(d3));
+
+    assign seen_s_d3 = (s_data == d3) && s_hsk;
+    assign seen_m_d3 = (m_data == d3) && m_hsk;
+
+    always_ff @(posedge clk)
+      if(!rstn)           sampled_s_d3 <= 0;
+      else if (seen_s_d3) sampled_s_d3 <= 1;
+
+    always_ff @(posedge clk)
+      if(!rstn)           sampled_m_d3 <= 0;
+      else if (seen_m_d3) sampled_m_d3 <= 1;
+
+    s_unique   : assume property (check_dup && sampled_s_d3 |-> !seen_s_d3);
+    a_unique   : assert property (check_dup && seen_m_d3 |-> !sampled_m_d3);
 
   end else if (METHOD == 1) begin: g_one_data_tracking
 
