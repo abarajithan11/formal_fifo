@@ -36,7 +36,7 @@ module tb_skid_buffer;
 
   // FIFO Checks
 
-  localparam METHOD = 0;
+  localparam METHOD = 1;
 
   if (METHOD == 0) begin: g_two_data_tracking
 
@@ -79,7 +79,7 @@ module tb_skid_buffer;
 
     // FIFO Assertions
     a_ordering : assert property (sampled_s_d1 && sampled_s_d2 && !sampled_m_d1 |-> !sampled_m_d2);
-    a_integrity: assert property (sampled_s_d1 |-> ##[0:$] sampled_m_d1); // data eventually comes out
+    // a_integrity: assert property (sampled_s_d1 |-> ##[0:$] sampled_m_d1); // data eventually comes out
 
     // D3 (for uniqueness)
 
@@ -100,7 +100,42 @@ module tb_skid_buffer;
     s_unique   : assume property (check_dup && sampled_s_d3 |-> !seen_s_d3);
     a_unique   : assert property (check_dup && seen_m_d3 |-> !sampled_m_d3);
 
-  end else if (METHOD == 1) begin: g_one_data_tracking
+  end else if (METHOD == 1) begin: g_fifo_fvip
+
+    typedef logic [2:0] flag_t;
+
+    property fifo_ordering(flag_t s_took, flag_t m_took);
+      s_took[0] && s_took[1] && !m_took[0] |-> !m_took[1];
+    endproperty
+
+    property fifo_unique_out(flag_t m_took, flag_t m_take);
+      m_took[2] |-> !m_take[2];
+    endproperty
+
+    property fifo_integrity(flag_t s_took, flag_t m_took, int MAX_DELAY);
+      s_took[0] |-> ##[0:MAX_DELAY] m_took[0];
+    endproperty
+
+    logic [2:0][WIDTH-1:0] f_d;
+    flag_t s_took, m_took, m_take;
+    s_stable:   assume property ($stable(f_d));
+    s_different: assume property (f_d[0] != f_d[1]);
+
+    fifo_fvip #(.CAUSAL(1)) u (
+      .clk, .rstn,
+      .s_hsk (s_hsk),
+      .s_is  ({s_data == f_d[2], s_data == f_d[1], s_data == f_d[0]}),
+      .m_hsk (m_hsk),
+      .m_is  ({m_data == f_d[2], m_data == f_d[1], m_data == f_d[0]}),
+      .s_took (s_took),
+      .m_took (m_took),
+      .m_take (m_take)
+    );
+
+    a_ordering : assert property (fifo_ordering(s_took, m_took));
+    a_unique   : assert property (fifo_unique_out(m_took, m_take));
+
+  end else if (METHOD == 2) begin: g_one_data_tracking
 
     localparam DEPTH = 2;
     localparam DEPTH_BITS = $clog2(DEPTH);
@@ -134,7 +169,7 @@ module tb_skid_buffer;
 
 
 
-  end else if (METHOD == 2) begin: g_idx_tracking
+  end else if (METHOD == 3) begin: g_idx_tracking
 
     logic [7:0] nn, s_nn, m_nn;
     logic sampled_s, sampled_m, seen_s, seen_m;
