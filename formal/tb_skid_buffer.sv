@@ -101,20 +101,7 @@ module tb_skid_buffer;
     a_unique   : assert property (check_dup && seen_m_d3 |-> !sampled_m_d3);
 
   end else if (METHOD == 1) begin: g_fifo_fvip
-
-    typedef logic [2:0] flag_t;
-
-    property fifo_ordering(flag_t s_took, flag_t m_took);
-      s_took[0] && s_took[1] && !m_took[0] |-> !m_took[1];
-    endproperty
-
-    property fifo_unique_out(flag_t m_took, flag_t m_take);
-      m_took[2] |-> !m_take[2];
-    endproperty
-
-    property fifo_integrity(flag_t s_took, flag_t m_took, int MAX_DELAY);
-      s_took[0] |-> ##[0:MAX_DELAY] m_took[0];
-    endproperty
+    import pkg_fifo_fvip::*;
 
     logic [2:0][WIDTH-1:0] f_d;
     flag_t s_took, m_took, m_take;
@@ -124,8 +111,8 @@ module tb_skid_buffer;
     fifo_fvip #(.CAUSAL(1)) u (
       .clk, .rstn,
       .s_hsk (s_hsk),
-      .s_is  ({s_data == f_d[2], s_data == f_d[1], s_data == f_d[0]}),
       .m_hsk (m_hsk),
+      .s_is  ({s_data == f_d[2], s_data == f_d[1], s_data == f_d[0]}),
       .m_is  ({m_data == f_d[2], m_data == f_d[1], m_data == f_d[0]}),
       .s_took (s_took),
       .m_took (m_took),

@@ -1,18 +1,29 @@
+package pkg_fifo_fvip;
+
+  typedef logic [2:0] flag_t;
+
+  property fifo_ordering(flag_t s_took, flag_t m_took);
+    s_took[0] && s_took[1] && !m_took[0] |-> !m_took[1];
+  endproperty
+
+  property fifo_unique_out(flag_t m_took, flag_t m_take);
+    m_took[2] |-> !m_take[2];
+  endproperty
+
+  property fifo_integrity(flag_t s_took, flag_t m_took, int MAX_DELAY);
+    s_took[0] |-> ##[0:MAX_DELAY] m_took[0];
+  endproperty
+
+endpackage
+
+
 module fifo_fvip #(
   parameter bit CAUSAL = 1
 ) (
-  input logic clk,
-  input logic rstn,
-
-  input logic       s_hsk,
-  input logic [2:0] s_is,
-
-  input logic       m_hsk,
-  input logic [2:0] m_is,
-
-  output logic [2:0] s_took,
-  output logic [2:0] m_took,
-  output logic [2:0] m_take
+  input  logic clk, rstn,
+  input  logic s_hsk, m_hsk,
+  input  logic [2:0] s_is, m_is,
+  output logic [2:0] s_took, m_took, m_take
 );
   default clocking cb @(posedge clk); endclocking
 
